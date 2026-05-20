@@ -6,13 +6,20 @@ import {
   Anchor, 
   Repeat, 
   Square, 
-  ChevronRight,
   Database,
   ShieldCheck,
-  MousePointer2
+  MousePointer2,
+  FolderMinus,
+  FolderPlus,
+  GitBranch,
+  SearchCode
 } from 'lucide-react';
 
-const Sidebar = () => {
+interface SidebarProps {
+  collapsed: boolean;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
     event.dataTransfer.setData('application/reactflow', nodeType);
     event.dataTransfer.effectAllowed = 'move';
@@ -22,57 +29,64 @@ const Sidebar = () => {
     {
       name: 'Basic Blocks',
       nodes: [
-        { type: 'text', label: 'Plain Text', icon: <Type size={16} /> },
-        { type: 'charClass', label: 'Char Class', icon: <Square size={16} /> },
-        { type: 'anyChar', label: 'Any Char', icon: <MousePointer2 size={16} /> },
+        { type: 'text', label: 'Plain Text', icon: <Type size={14} />, desc: 'Match exact text sequence' },
+        { type: 'charClass', label: 'Char Class', icon: <Square size={14} />, desc: 'Match set of characters (e.g. [a-z])' },
+        { type: 'anyChar', label: 'Any Char', icon: <MousePointer2 size={14} />, desc: 'Match any character (.)' },
       ]
     },
     {
-      name: 'Anchors & Logic',
+      name: 'Anchors & Boundaries',
       nodes: [
-        { type: 'startAnchor', label: 'Line Start', icon: <Anchor size={16} /> },
-        { type: 'endAnchor', label: 'Line End', icon: <Anchor size={16} /> },
-        { type: 'quantifier', label: 'Quantifier', icon: <Repeat size={16} /> },
+        { type: 'startAnchor', label: 'Line Start', icon: <Anchor size={14} />, desc: 'Match start of line (^)' },
+        { type: 'endAnchor', label: 'Line End', icon: <Anchor size={14} />, desc: 'Match end of line ($)' },
+        { type: 'wordBoundary', label: 'Word Boundary', icon: <SearchCode size={14} />, desc: 'Match boundary between word/non-word' },
       ]
     },
     {
-      name: 'Presets',
+      name: 'Groups & Logic',
       nodes: [
-        { type: 'email', label: 'Email', icon: <AtSign size={16} /> },
-        { type: 'number', label: 'Number', icon: <Hash size={16} /> },
-        { type: 'ipv4', label: 'IPv4', icon: <Database size={16} /> },
-        { type: 'password', label: 'Password', icon: <ShieldCheck size={16} /> },
+        { type: 'groupStart', label: 'Group Start', icon: <FolderPlus size={14} />, desc: 'Start group / lookaround (' },
+        { type: 'groupEnd', label: 'Group End', icon: <FolderMinus size={14} />, desc: 'Close open group / lookaround )' },
+        { type: 'quantifier', label: 'Quantifier', icon: <Repeat size={14} />, desc: 'Specify count (+, *, ?, {n,m})' },
+        { type: 'or', label: 'Alternation (OR)', icon: <GitBranch size={14} />, desc: 'Match alternative strings (A|B)' },
+      ]
+    },
+    {
+      name: 'Common Presets',
+      nodes: [
+        { type: 'email', label: 'Email Address', icon: <AtSign size={14} />, desc: 'Match standard email regex' },
+        { type: 'number', label: 'Number', icon: <Hash size={14} />, desc: 'Match 1 or more digits' },
+        { type: 'ipv4', label: 'IPv4 Address', icon: <Database size={14} />, desc: 'Match IPv4 address formats' },
+        { type: 'password', label: 'Strong Password', icon: <ShieldCheck size={14} />, desc: 'Require numbers, letters, symbols' },
       ]
     }
   ];
 
   return (
-    <aside className="w-60 glass-dark border-r border-white/5 flex flex-col overflow-hidden">
-      <div className="p-4 border-b border-white/5">
-        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-tighter">
-          Nodes Library
-        </h2>
+    <aside className={`sidebar-wrapper sidebar-transition ${collapsed ? 'collapsed' : ''}`}>
+      <div className="sidebar-header">
+        <h2>Nodes Library</h2>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="sidebar-content">
         {nodeCategories.map((category) => (
-          <div key={category.name} className="space-y-3">
-            <h3 className="text-[10px] font-semibold text-gray-400 uppercase flex items-center gap-1">
-              <ChevronRight size={10} className="text-blue-500" />
+          <div key={category.name} className="category-group">
+            <h3 className="category-title">
               {category.name}
             </h3>
-            <div className="grid grid-cols-1 gap-2">
+            <div>
               {category.nodes.map((node) => (
                 <div
                   key={node.type}
-                  className="flex items-center gap-3 p-3 rounded-xl glass hover:bg-white/5 cursor-grab active:cursor-grabbing transition-all border border-white/5 hover:border-blue-500/50 group"
+                  className="node-item"
                   onDragStart={(event) => onDragStart(event, node.type)}
                   draggable
+                  title={node.desc}
                 >
-                  <div className="p-2 rounded-lg bg-slate-800 text-blue-400 group-hover:text-white transition-colors">
+                  <div className="node-icon">
                     {node.icon}
                   </div>
-                  <span className="text-sm font-medium text-gray-300 group-hover:text-white">
+                  <span className="node-label">
                     {node.label}
                   </span>
                 </div>
@@ -82,10 +96,10 @@ const Sidebar = () => {
         ))}
       </div>
 
-      <div className="p-4 glass m-3 rounded-xl border-blue-500/20">
-        <div className="text-[10px] text-blue-400 font-bold mb-1">PRO TIP</div>
-        <p className="text-[10px] text-gray-400 leading-relaxed">
-          Drag nodes onto the canvas and connect them to build your regex logic chain.
+      <div className="sidebar-tip">
+        <h4>Workflow Tip</h4>
+        <p>
+          Drag components into the editor, fill out properties, and chain them left-to-right to compile regex.
         </p>
       </div>
     </aside>
