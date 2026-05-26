@@ -48,6 +48,7 @@ const nodeTypes = {
   number: CustomNode,
   ipv4: CustomNode,
   password: CustomNode,
+  backreference: CustomNode,
 };
 
 const initialNodes: Node[] = [
@@ -64,7 +65,6 @@ const initialEdges: Edge[] = [];
 function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const [regex, setRegex] = useState<string>('');
   
   // Panel Collapse States
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -88,10 +88,18 @@ function App() {
   const stopEvolutionRef = useRef<(() => void) | null | undefined>(null);
 
   // Live compile nodes to regex when nodes, edges, or flags change
+  const regex = useMemo(() => generateRegex(nodes, edges, flags), [nodes, edges, flags]);
+
+  const prevHasAnchorsRef = useRef(false);
+
+  // Auto-enable multiline mode when anchors are first added to the canvas
   useEffect(() => {
-    const generated = generateRegex(nodes, edges, flags);
-    setRegex(generated);
-  }, [nodes, edges, flags]);
+    const hasAnchors = nodes.some(n => n.type === 'startAnchor' || n.type === 'endAnchor');
+    if (hasAnchors && !prevHasAnchorsRef.current) {
+      setFlags(f => ({ ...f, multiline: true }));
+    }
+    prevHasAnchorsRef.current = hasAnchors;
+  }, [nodes]);
 
   const onConnect = useCallback(
     (params: Connection | Edge) => setEdges((eds) => addEdge(params, eds)),
@@ -125,6 +133,7 @@ function App() {
       if (type === 'groupStart') label = 'Group Start';
       if (type === 'groupEnd') label = 'Group End';
       if (type === 'or') label = 'Alternation (OR)';
+      if (type === 'backreference') label = 'Backreference';
 
       const newNode: Node = {
         id: `${Date.now()}`,
@@ -133,7 +142,8 @@ function App() {
         data: { 
           label,
           type,
-          value: type === 'text' ? 'hello' : (type === 'charClass' ? 'a-z' : undefined)
+          value: type === 'text' ? 'hello' : (type === 'charClass' ? 'a-z' : undefined),
+          groupIndex: type === 'backreference' ? '1' : undefined
         },
       };
 
@@ -174,8 +184,8 @@ function App() {
     setEvolvedPattern('');
     
     const cancel = evolveRegexAsync(positives, negatives, {
-      maxGenerations: 100,
-      populationSize: 80,
+      maxGenerations: 300,
+      populationSize: 150,
       onProgress: (progress) => {
         setEvolutionProgress(progress);
       },
@@ -226,6 +236,7 @@ function App() {
       ...node,
       data: {
         ...node.data,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onUpdate: (newData: any) => {
           setNodes((nds) =>
             nds.map((n) => (n.id === node.id ? { ...n, data: { ...n.data, ...newData } } : n))

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare module 'regexgen' {
   const regexgen: (inputs: string[]) => RegExp;
   export default regexgen;

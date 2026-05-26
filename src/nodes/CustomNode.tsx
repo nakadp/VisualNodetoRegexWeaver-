@@ -1,7 +1,7 @@
 import React from 'react';
 import { Handle, Position } from 'reactflow';
 import type { NodeProps } from 'reactflow';
-import { Trash2, Plus, Type, Square, MousePointer2, Anchor, Repeat, FolderPlus, FolderMinus, GitBranch, Settings } from 'lucide-react';
+import { Trash2, Plus, Type, Square, MousePointer2, Anchor, Repeat, FolderPlus, FolderMinus, GitBranch, Settings, Link2 } from 'lucide-react';
 
 const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
   const onUpdate = data.onUpdate || (() => {});
@@ -20,6 +20,7 @@ const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
       case 'groupStart': return <FolderPlus size={12} className="text-indigo-400" />;
       case 'groupEnd': return <FolderMinus size={12} className="text-gray-400" />;
       case 'or': return <GitBranch size={12} className="text-green-400" />;
+      case 'backreference': return <Link2 size={12} className="text-teal-400" />;
       default: return <Settings size={12} className="text-blue-400" />;
     }
   };
@@ -34,6 +35,7 @@ const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
       case 'groupEnd':
         return 'border-indigo-500/25 bg-indigo-950/20';
       case 'or': return 'border-green-500/25 bg-green-950/20';
+      case 'backreference': return 'border-teal-500/25 bg-teal-950/20';
       default: return 'border-slate-800 bg-slate-900/60';
     }
   };
@@ -195,7 +197,7 @@ const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
           </div>
         );
 
-      case 'or':
+      case 'or': {
         const options = data.options || ['opt1', 'opt2'];
         const handleOptionChange = (index: number, val: string) => {
           const newOptions = [...options];
@@ -207,7 +209,7 @@ const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
         };
         const removeOption = (index: number) => {
           if (options.length <= 2) return; // Keep at least 2 options
-          const newOptions = options.filter((_: any, i: number) => i !== index);
+          const newOptions = options.filter((_: string, i: number) => i !== index);
           onUpdate({ options: newOptions });
         };
         return (
@@ -235,6 +237,7 @@ const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
             </button>
           </div>
         );
+      }
 
       case 'email':
       case 'number':
@@ -271,6 +274,21 @@ const CustomNode: React.FC<NodeProps> = ({ data, selected }) => {
         return (
           <div className="node-body">
             <span className="text-[11px] text-orange-400/80 font-semibold uppercase">Asserts word boundary (\b)</span>
+          </div>
+        );
+
+      case 'backreference':
+        return (
+          <div className="node-body">
+            <div className="node-form-group">
+              <label>Group Index / Name</label>
+              <input 
+                type="text" 
+                placeholder="e.g. 1" 
+                value={data.groupIndex || '1'} 
+                onChange={(e) => onUpdate({ groupIndex: e.target.value })}
+              />
+            </div>
           </div>
         );
 

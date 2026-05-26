@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Copy, Terminal, AlertTriangle, Zap, CheckCircle, CopyCheck, Settings } from 'lucide-react';
 import type { Node, Edge } from 'reactflow';
 
@@ -14,11 +14,7 @@ interface OutputPanelProps {
 const OutputPanel: React.FC<OutputPanelProps> = ({ regex, nodes, edges, collapsed, flags, setFlags }) => {
   const [selectedFlavor, setSelectedFlavor] = useState<string>('JavaScript');
   const [copied, setCopied] = useState<boolean>(false);
-  const [performance, setPerformance] = useState<{ status: 'success' | 'warning' | 'danger'; text: string }>({
-    status: 'success',
-    text: 'Pattern is optimized for linear time matching.'
-  });
-  const [explanations, setExplanations] = useState<string[]>([]);
+
 
   // Extract raw pattern and flags from /pattern/flags
   const getRawRegexInfo = (): { pattern: string; flags: string } => {
@@ -62,13 +58,12 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ regex, nodes, edges, collapse
   };
 
   // 2. Real performance diagnostics
-  useEffect(() => {
+  const performance = useMemo(() => {
     if (!rawPattern) {
-      setPerformance({
-        status: 'success',
+      return {
+        status: 'success' as const,
         text: 'Canvas empty. Waiting for nodes...'
-      });
-      return;
+      };
     }
 
     // Trace the active chain to check for unclosed group nodes
@@ -79,14 +74,15 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ regex, nodes, edges, collapse
     }
     startNodes.sort((a, b) => a.position.x - b.position.x);
     
-    let currentNode = startNodes[0];
+    let currentNode: Node | undefined = startNodes[0];
     const visited = new Set<string>();
     const chain: Node[] = [];
     while (currentNode && !visited.has(currentNode.id)) {
-      visited.add(currentNode.id);
-      chain.push(currentNode);
-      const edge = edges.find(e => e.source === currentNode.id);
-      currentNode = edge ? (nodes.find(n => n.id === edge.target) as Node) : (undefined as any);
+      const currNode = currentNode as Node;
+      visited.add(currNode.id);
+      chain.push(currNode);
+      const edge = edges.find(e => e.source === currNode.id);
+      currentNode = edge ? nodes.find(n => n.id === edge.target) : undefined;
     }
 
     const groupStartCount = chain.filter(n => n.type === 'groupStart').length;
@@ -95,39 +91,38 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ regex, nodes, edges, collapse
 
     // Check for Catastrophic Backtracking: nested repetitions like (a+)+ or (\w+)*
     // Look for group contents containing quantifier symbols, followed by a quantifier symbol
-    const isCatastrophic = /(\([^\)]*[\*\+\{\}][^\)]*\))[\*\+\{\}]/.test(rawPattern);
+    const isCatastrophic = /(\([^)]*[*+{}][^)]*\))[*+{}]/.test(rawPattern);
     
     // Check for double quantifiers like ++, **
-    const isDoubleQuantifier = /[\*\+\?]{2,}/.test(rawPattern);
+    const isDoubleQuantifier = /[*+?]{2,}/.test(rawPattern);
 
     if (isCatastrophic) {
-      setPerformance({
-        status: 'danger',
+      return {
+        status: 'danger' as const,
         text: 'CRITICAL: Potential Catastrophic Backtracking detected! Nested repetitions (e.g. (a+)+) can cause exponential execution times and freeze your system.'
-      });
+      };
     } else if (hasUnclosedGroup) {
-      setPerformance({
-        status: 'warning',
+      return {
+        status: 'warning' as const,
         text: 'WARNING: Unclosed groups detected. You have started a logic group/assertion using Group Start but have not closed it. Make sure to connect a Group End node.'
-      });
+      };
     } else if (isDoubleQuantifier) {
-      setPerformance({
-        status: 'warning',
+      return {
+        status: 'warning' as const,
         text: 'WARNING: Redundant/duplicate quantifiers detected (e.g. ++). This may trigger syntax compilation errors.'
-      });
+      };
     } else {
-      setPerformance({
-        status: 'success',
+      return {
+        status: 'success' as const,
         text: 'Optimal Match: Pattern has linear time complexity O(N). Safe for server-side environments.'
-      });
+      };
     }
   }, [rawPattern, nodes, edges]);
 
   // 3. Dynamic natural language explanation builder
-  useEffect(() => {
+  const explanations = useMemo(() => {
     if (nodes.length === 0) {
-      setExplanations([]);
-      return;
+      return [];
     }
 
     // Build the sequential chain
@@ -140,16 +135,17 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ regex, nodes, edges, collapse
     
     startNodes.sort((a, b) => a.position.x - b.position.x);
     
-    let currentNode = startNodes[0];
+    let currentNode: Node | undefined = startNodes[0];
     const visited = new Set<string>();
     const chain: Node[] = [];
 
     while (currentNode && !visited.has(currentNode.id)) {
-      visited.add(currentNode.id);
-      chain.push(currentNode);
+      const currNode = currentNode as Node;
+      visited.add(currNode.id);
+      chain.push(currNode);
       
-      const edge = edges.find(e => e.source === currentNode.id);
-      currentNode = edge ? (nodes.find(n => n.id === edge.target) as Node) : (undefined as any);
+      const edge = edges.find(e => e.source === currNode.id);
+      currentNode = edge ? nodes.find(n => n.id === edge.target) : undefined;
     }
 
     const steps: string[] = [];
@@ -158,10 +154,11 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ regex, nodes, edges, collapse
       const data = node.data || {};
       
       switch (node.type) {
-        case 'text':
+        case 'text': {
           const val = data.value || '';
           steps.push(`匹配文本 "${val}"${data.caseInsensitive ? ' (忽略大小写)' : ''}`);
           break;
+        }
         case 'charClass': {
           const negated = !!data.negated;
           const pre = negated ? '不属于' : '属于';
@@ -179,9 +176,10 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ regex, nodes, edges, collapse
               steps.push(`匹配一个 ${negated ? '非空白' : '空白'} 字符`);
               break;
             case 'custom':
-            default:
+            default: {
               steps.push(`匹配一个字符，它 ${pre} 集合 [${data.value || ''}]`);
               break;
+            }
           }
           break;
         }
@@ -252,7 +250,7 @@ const OutputPanel: React.FC<OutputPanelProps> = ({ regex, nodes, edges, collapse
       }
     });
 
-    setExplanations(steps);
+    return steps;
   }, [nodes, edges]);
 
   // Handle clipboard copy

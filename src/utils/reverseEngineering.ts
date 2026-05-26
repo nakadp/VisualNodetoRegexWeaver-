@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import regexpTree from 'regexp-tree';
 import type { Node, Edge } from 'reactflow';
 
@@ -21,6 +22,11 @@ const stringifyAST = (node: any): string => {
       return '(' + (node.capturing ? '' : '?:') + stringifyAST(node.expression) + ')';
     case 'Assertion':
       return node.value;
+    case 'Backreference':
+      if (node.kind === 'name') {
+        return `\\k<${node.reference}>`;
+      }
+      return `\\${node.reference}`;
     default:
       return '';
   }
@@ -79,6 +85,8 @@ export const reverseEngineer = (regexStr: string): { nodes: Node[], edges: Edge[
         case 'Char': {
           if (astNode.value === '\\d') {
             nodeDescriptions.push({ type: 'number', label: 'Number' });
+          } else if (astNode.value === '.' && astNode.kind === 'meta') {
+            nodeDescriptions.push({ type: 'anyChar', label: 'Any Char' });
           } else if (astNode.value === '\\w') {
             nodeDescriptions.push({ type: 'charClass', label: 'Char Class', classPreset: 'wordChars', negated: false });
           } else if (astNode.value === '\\s') {
@@ -89,6 +97,12 @@ export const reverseEngineer = (regexStr: string): { nodes: Node[], edges: Edge[
             nodeDescriptions.push({ type: 'charClass', label: 'Char Class', classPreset: 'wordChars', negated: true });
           } else if (astNode.value === '\\S') {
             nodeDescriptions.push({ type: 'charClass', label: 'Char Class', classPreset: 'whitespace', negated: true });
+          } else if (astNode.value === '\\n') {
+            nodeDescriptions.push({ type: 'text', label: 'Plain Text', value: '\n', caseInsensitive: hasGlobalIgnoreCase });
+          } else if (astNode.value === '\\t') {
+            nodeDescriptions.push({ type: 'text', label: 'Plain Text', value: '\t', caseInsensitive: hasGlobalIgnoreCase });
+          } else if (astNode.value === '\\r') {
+            nodeDescriptions.push({ type: 'text', label: 'Plain Text', value: '\r', caseInsensitive: hasGlobalIgnoreCase });
           } else if (astNode.value.startsWith('\\') && astNode.value.length === 2) {
             // Escaped special character, e.g. \. or \*
             nodeDescriptions.push({ type: 'text', label: 'Plain Text', value: astNode.value.slice(1), caseInsensitive: hasGlobalIgnoreCase });
@@ -107,6 +121,53 @@ export const reverseEngineer = (regexStr: string): { nodes: Node[], edges: Edge[
             classPreset: 'custom',
             value: innerVal,
             negated: !!astNode.negated
+          });
+          break;
+        }
+        
+        case 'Repetition': {
+          const beforeCount = nodeDescriptions.length;
+          traverse(astNode.expression);
+          const afterCount = nodeDescriptions.length;
+          if (afterCount > beforeCount) {
+            nodeDescriptions[beforeCount].noMergeBefore = true;
+          }
+          
+          const qNode = astNode.quantifier;
+          let qType = 'oneOrMore';
+          let n = 1;
+          let m = 2;
+          const kind = qNode.kind;
+          
+          if (kind === '+') {
+            qType = 'oneOrMore';
+          } else if (kind === '*') {
+            qType = 'zeroOrMore';
+          } else if (kind === '?') {
+            qType = 'optional';
+          } else if (kind === 'Range') {
+            if (qNode.from !== undefined && qNode.to !== undefined) {
+              if (qNode.from === qNode.to) {
+                qType = 'exact';
+                n = qNode.from;
+              } else {
+                qType = 'range';
+                n = qNode.from;
+                m = qNode.to;
+              }
+            } else if (qNode.from !== undefined) {
+              qType = 'min';
+              n = qNode.from;
+            }
+          }
+          
+          nodeDescriptions.push({
+            type: 'quantifier',
+            label: 'Quantifier',
+            quantifierType: qType,
+            n,
+            m,
+            lazy: !qNode.greedy
           });
           break;
         }
@@ -184,7 +245,7 @@ export const reverseEngineer = (regexStr: string): { nodes: Node[], edges: Edge[
             nodeDescriptions.push({ type: 'startAnchor', label: 'Line Start' });
           } else if (astNode.kind === '$') {
             nodeDescriptions.push({ type: 'endAnchor', label: 'Line End' });
-          } else if (astNode.code === '\\b') {
+          } else if (astNode.kind === '\\b') {
             nodeDescriptions.push({ type: 'wordBoundary', label: 'Word Boundary' });
           } else if (astNode.kind === 'Lookahead' || astNode.kind === 'Lookbehind') {
             const gType = astNode.kind === 'Lookahead' 
@@ -207,6 +268,16 @@ export const reverseEngineer = (regexStr: string): { nodes: Node[], edges: Edge[
           break;
         }
         
+        case 'Backreference': {
+          const groupIndex = astNode.reference;
+          nodeDescriptions.push({
+            type: 'backreference',
+            label: `Backreference (\\${groupIndex})`,
+            groupIndex: String(groupIndex)
+          });
+          break;
+        }
+        
         case 'RegExp':
           traverse(astNode.body);
           break;
@@ -221,7 +292,8 @@ export const reverseEngineer = (regexStr: string): { nodes: Node[], edges: Edge[
       if (
         desc.type === 'text' && 
         mergedDescriptions.length > 0 && 
-        mergedDescriptions[mergedDescriptions.length - 1].type === 'text'
+        mergedDescriptions[mergedDescriptions.length - 1].type === 'text' &&
+        !desc.noMergeBefore
       ) {
         mergedDescriptions[mergedDescriptions.length - 1].value += desc.value;
       } else {
@@ -253,7 +325,8 @@ export const reverseEngineer = (regexStr: string): { nodes: Node[], edges: Edge[
           lazy: desc.lazy,
           groupType: desc.groupType,
           groupName: desc.groupName,
-          options: desc.options
+          options: desc.options,
+          groupIndex: desc.groupIndex
         }
       });
       

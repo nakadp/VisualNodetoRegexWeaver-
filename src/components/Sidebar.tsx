@@ -12,7 +12,8 @@ import {
   FolderMinus,
   FolderPlus,
   GitBranch,
-  SearchCode
+  SearchCode,
+  Link2
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -49,6 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         { type: 'groupEnd', label: 'Group End', icon: <FolderMinus size={14} />, desc: 'Close open group / lookaround )' },
         { type: 'quantifier', label: 'Quantifier', icon: <Repeat size={14} />, desc: 'Specify count (+, *, ?, {n,m})' },
         { type: 'or', label: 'Alternation (OR)', icon: <GitBranch size={14} />, desc: 'Match alternative strings (A|B)' },
+        { type: 'backreference', label: 'Backreference', icon: <Link2 size={14} />, desc: 'Match same text matched by previous group (\\1)' },
       ]
     },
     {

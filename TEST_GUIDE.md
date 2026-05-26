@@ -15,7 +15,7 @@
 
 ---
 
-## 测试场景一：可视化拖拽与串联编译 (构建爬虫格式校验器)
+## 测试场景一：可视化拖拽与串联编译 (构建爬虫格式校验器)通过
 
 ### 1. 目标
 模拟爬虫任务中对采集到的 HTTP 状态行（如 `H200OK`、`A301B`）做格式校验。通过拖拽组件构建正则，要求：
@@ -84,9 +84,11 @@ c100!OK
 | `1234!` | ❌ 不匹配 | 开头是数字而非字母 |
 | `c100!OK` | ❌ 不匹配 | `!` 之后还有字符，不在行尾 |
 
+测试结果，文本不高亮，只有只剩下`a123!`的时候会高亮，前后有任何内容都不高亮
+
 ---
 
-## 测试场景二：正则表达式逆向工程 (反编译 URL 提取正则)
+## 测试场景二：正则表达式逆向工程 (反编译 URL 提取正则) 通过
 
 ### 1. 目标
 将生产级的 URL 结构化提取正则反编译为可视化节点，验证反编译器（AST Decompiler）的准确性。
@@ -103,6 +105,11 @@ c100!OK
 2. 粘贴以下正则并回车或点击旁边的 **刷新图标**：
    ```
    /(?<protocol>https?):\/\/(?:www\.)?(?<domain>[a-zA-Z0-9.-]+)/gi
+   ```
+
+实际结果：
+   ```javascript
+  const regex = /(?<protocol>http)://(?<domain>)/gi;
    ```
 
 ### 4. 预测结果
@@ -125,13 +132,20 @@ c100!OK
 | 12 | `Quantifier` | One or More (`+`) |
 | 13 | `Group End` | 关闭 `domain` 组 |
 
+按如上配置后的结果
+
+   ```javascript
+// Compiled Pattern
+const regex = /(?<protocol>(?:http)?)://(?:www\.)?(?<domain>[a-zA-Z0-9.-]+)/gi;
+   ```
+
 **右侧 Output Flags（来自 `/gi`）：**
 - `Case Insensitive (i)` 自动勾选
 - 右侧 Diagnostics：✅ 绿色，线性时间复杂度 O(N)
 
 ---
 
-## 测试场景三：测试沙盒——Match Highlight (多 URL 批量高亮)
+## 测试场景三：测试沙盒——Match Highlight (多 URL 批量高亮)通过
 
 ### 1. 目标
 在真实的爬虫爬取内容（混合文本与链接的 HTML 片段）中，验证正则的批量匹配和字符级高亮渲染。
@@ -174,7 +188,7 @@ API 端点: http://api.example.com/v2/items?limit=50
 
 ---
 
-## 测试场景四：测试沙盒——Details & Groups (分组捕获与爬虫字段提取)
+## 测试场景四：测试沙盒——Details & Groups (分组捕获与爬虫字段提取) 通过
 
 ### 1. 目标
 验证底部 **Details & Groups** 标签页能否精确展示每个匹配的索引位置和各捕获组的值——这是爬虫"字段抽取"的核心能力。
@@ -238,7 +252,7 @@ Match #5
 
 ---
 
-### 替换任务 A：提取并格式化为 Markdown 链接
+### 替换任务 A：提取并格式化为 Markdown 链接  通过
 
 在 **Replace With** 输入框填入：
 ```
@@ -279,9 +293,21 @@ API 端点: [api.example.com](http://api.example.com)/v2/items?limit=50
 "http","api.example.com"
 ```
 
+**实际替换结果：**
+```
+官方主页: https"","apple.com"/products
+文档中心: "http","docs.python.org"/3/library/re.html
+CDN 镜像: https"","cdn.jsdelivr.net"/npm/react@18.2.0
+GitHub 仓库: https"","github.com"/facebook/react
+API 端点: "http","api.example.com"/v2/items?limit=50
+未知协议（不应匹配）: ftp"","legacy.server.io"
+本地链接（不应匹配）: file:///Users/admin/report.html
+邮件地址（不匹配）: admin@example.com
+```
+
 ---
 
-### 替换任务 C：统一协议升级（http → https）
+### 替换任务 C：统一协议升级（http → https）通过
 
 **Replace With：**
 ```
@@ -305,7 +331,7 @@ https://$2
 
 ---
 
-## 测试场景六：Global Regex Flags 用法
+## 测试场景六：Global Regex Flags 用法 通过
 
 Global Regex Flags（全局正则标志）位于右侧 **Output Panel** 顶部的 **Flags** 区域，有三个复选框：
 
@@ -343,7 +369,7 @@ Ruby is different
 
 ---
 
-### Flag 测试 B：Multiline (`m`) — 多行日志行首匹配
+### Flag 测试 B：Multiline (`m`) — 多行日志行首匹配 通过
 
 **目标**：从爬虫运行日志中，精确匹配每一行以 `[ERROR]` 开头的日志条目。
 
@@ -376,7 +402,7 @@ Ruby is different
 
 ---
 
-### Flag 测试 C：Dot All (`s`) — 跨行 HTML 片段提取
+### Flag 测试 C：Dot All (`s`) — 跨行 HTML 片段提取 通过
 
 **目标**：从 HTML 抓取内容中，用 `.` 匹配包含换行符的多行标签内容。
 
@@ -408,9 +434,11 @@ Match #1
 
 **不勾选 `s` 时**：`.` 不匹配 `\n`，`<title>` 多行内容无法被匹配。
 
+**勾选 `s` 后，实际测试结果**：无法匹配到多行 `<title>` 内容，无法高亮，在Details & Groups 中无预测所示内容显示。
+
 ---
 
-### Flag 组合使用（`gi` + `m`）
+### Flag 组合使用（`gi` + `m`） 通过
 
 在实际爬虫中，通常同时使用多个 Flag：
 
@@ -434,7 +462,7 @@ Error: timeout exceeded
 
 ---
 
-## 测试场景七：达尔文进化引擎 (遗传算法自动演化日志正则)
+## 测试场景七：达尔文进化引擎 (遗传算法自动演化日志正则)通过
 
 ### 1. 目标
 测试"达尔文进化"的遗传算法能力。模拟爬虫工程师面对一批服务器日志，需要自动找出一个能精确区分**错误日志**与**正常日志**的正则表达式模式，无需手写正则。
@@ -474,7 +502,10 @@ Error: timeout exceeded
 - **应用到画布**：对话框关闭，正则通过 AST 反编译器拆解为节点铺在画布上
 - **Diagnostics 验证**：右侧面板显示该演化正则的性能指标（绿色/黄色/红色）
 
-### 5. 邮箱正则进化（进阶测试）
+### 实际测试结果
+- 如预测所示， /ER/ 
+
+### 5. 邮箱正则进化（进阶测试）通过
 
 **正向样本：**
 ```

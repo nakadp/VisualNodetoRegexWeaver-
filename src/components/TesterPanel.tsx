@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Beaker, Search, Replace, Layers, AlertTriangle } from 'lucide-react';
 
 interface TesterPanelProps {
@@ -12,20 +12,13 @@ const TesterPanel: React.FC<TesterPanelProps> = ({ regex, collapsed }) => {
   );
   const [replaceText, setReplaceText] = useState<string>("[$&]");
   const [activeTab, setActiveTab] = useState<'highlight' | 'details' | 'replace'>('highlight');
-  const [matches, setMatches] = useState<RegExpExecArray[]>([]);
-  const [regexObj, setRegexObj] = useState<RegExp | null>(null);
-  const [hasGroups, setHasGroups] = useState<boolean>(false);
 
-  // Compile regex and perform matches
-  useEffect(() => {
+  // Compile regex and perform matches reactively when regex or testText changes
+  const { regexObj, matches, hasGroups } = useMemo(() => {
+    if (!regex) {
+      return { regexObj: null, matches: [], hasGroups: false };
+    }
     try {
-      if (!regex) {
-        setMatches([]);
-        setRegexObj(null);
-        setHasGroups(false);
-        return;
-      }
-      
       const match = regex.match(/^\/(.*)\/([gimsuy]*)$/);
       let pattern = regex;
       let flags = 'g';
@@ -33,16 +26,17 @@ const TesterPanel: React.FC<TesterPanelProps> = ({ regex, collapsed }) => {
         pattern = match[1];
         flags = match[2];
         if (!flags.includes('g')) flags += 'g'; // Enforce global flag for scanning all matches
+        if (!flags.includes('d')) flags += 'd'; // Enforce indices flag for accurate group highlighting
+      } else {
+        flags = 'gd';
       }
       
       const re = new RegExp(pattern, flags);
-      setRegexObj(re);
-
+      
       // Check capturing groups
       const cleanPattern = pattern.replace(/\\./g, '');
       const hasCapturingGroups = /\((?!\?(?!<))/.test(cleanPattern);
-      setHasGroups(hasCapturingGroups);
-
+      
       const m: RegExpExecArray[] = [];
       let currentMatch;
       let iterations = 0;
@@ -57,11 +51,9 @@ const TesterPanel: React.FC<TesterPanelProps> = ({ regex, collapsed }) => {
           re.lastIndex++;
         }
       }
-      setMatches(m);
-    } catch (e) {
-      setMatches([]);
-      setRegexObj(null);
-      setHasGroups(false);
+      return { regexObj: re, matches: m, hasGroups: hasCapturingGroups };
+    } catch {
+      return { regexObj: null, matches: [], hasGroups: false };
     }
   }, [regex, testText]);
 
@@ -82,17 +74,28 @@ const TesterPanel: React.FC<TesterPanelProps> = ({ regex, collapsed }) => {
       if (i >= m.index && i < m.index + matchVal.length) {
         let activeGroup = 0; // Default: full match
         
-        // Find if this character belongs to any capturing group (indices 1 to m.length-1)
-        for (let g = 1; g < m.length; g++) {
-          const groupVal = m[g];
-          if (groupVal !== undefined && groupVal !== '') {
-            // Find start of group inside the match
-            const groupIdx = matchVal.indexOf(groupVal);
-            if (groupIdx !== -1) {
-              const gStart = m.index + groupIdx;
-              const gEnd = gStart + groupVal.length;
-              if (i >= gStart && i < gEnd) {
-                activeGroup = g;
+        // Use RegExp Match Indices (d flag) for 100% accurate group tracking if available
+        const indices = (m as unknown as { indices?: [number, number][] }).indices;
+        if (indices) {
+          for (let g = 1; g < indices.length; g++) {
+            const range = indices[g];
+            if (range && i >= range[0] && i < range[1]) {
+              activeGroup = g;
+            }
+          }
+        } else {
+          // Fallback if indices is not available
+          for (let g = 1; g < m.length; g++) {
+            const groupVal = m[g];
+            if (groupVal !== undefined && groupVal !== '') {
+              // Find start of group inside the match
+              const groupIdx = matchVal.indexOf(groupVal);
+              if (groupIdx !== -1) {
+                const gStart = m.index + groupIdx;
+                const gEnd = gStart + groupVal.length;
+                if (i >= gStart && i < gEnd) {
+                  activeGroup = g;
+                }
               }
             }
           }

@@ -68,33 +68,28 @@ export const generateRegex = (
       case 'charClass': {
         const negated = !!data.negated;
         const prefix = negated ? '^' : '';
-        let classContent = '';
         
         switch (data.classPreset) {
           case 'digits':
-            classContent = negated ? '\\D' : '\\d';
-            pushToTopBuffer(classContent);
+            pushToTopBuffer(negated ? '\\D' : '\\d');
             break;
           case 'letters':
-            classContent = `[${prefix}a-zA-Z]`;
-            pushToTopBuffer(classContent);
+            pushToTopBuffer(`[${prefix}a-zA-Z]`);
             break;
           case 'wordChars':
-            classContent = negated ? '\\W' : '\\w';
-            pushToTopBuffer(classContent);
+            pushToTopBuffer(negated ? '\\W' : '\\w');
             break;
           case 'whitespace':
-            classContent = negated ? '\\S' : '\\s';
-            pushToTopBuffer(classContent);
+            pushToTopBuffer(negated ? '\\S' : '\\s');
             break;
           case 'custom':
-          default:
+          default: {
             const val = data.value || '';
             // If the user typed square brackets themselves, strip them to avoid duplicate brackets
             const cleanVal = val.replace(/^\[|\]$/g, '');
-            classContent = `[${prefix}${cleanVal}]`;
-            pushToTopBuffer(classContent);
+            pushToTopBuffer(`[${prefix}${cleanVal}]`);
             break;
+          }
         }
         break;
       }
@@ -207,6 +202,16 @@ export const generateRegex = (
         break;
       }
 
+      case 'backreference': {
+        const ref = data.groupIndex || '1';
+        if (typeof ref === 'number' || /^\d+$/.test(String(ref))) {
+          pushToTopBuffer(`\\${ref}`);
+        } else {
+          pushToTopBuffer(`\\k<${ref}>`);
+        }
+        break;
+      }
+
       case 'email':
         pushToTopBuffer('[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}');
         break;
@@ -247,6 +252,6 @@ export const generateRegex = (
 };
 
 function escapeRegExp(string: string) {
-  // Escapes special characters for regex literals
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Escapes special characters for regex literals, including forward slash /
+  return string.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 }
